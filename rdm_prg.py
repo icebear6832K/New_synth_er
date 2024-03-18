@@ -1,7 +1,8 @@
 import random as rd
 import math as m
 import matplotlib.pyplot as plt
-from note import Sound, output_sound_objs, TimbreFactor
+from supporting_functions import TimbreFactor
+from sound_object import Sound, output_sound_objs
 
 # 定義簡單整數比率
 SIMPLE_INT_RATIOS = {
@@ -104,9 +105,9 @@ def harmony_factor(freq_list):
     return fac
 
 
-def adjust_val(val_choice, i, g=1.04):
+def adjust_val(val_choice, i, g=1.2):
     if val_choice is None:
-        val = rd.gauss(g, 0.02)
+        val = rd.gauss(g, 0.05)
     elif isinstance(val_choice, list):
         val = val_choice[i % len(val_choice)]
     else:
@@ -114,7 +115,7 @@ def adjust_val(val_choice, i, g=1.04):
     return val
 
 
-def adjust_frequencies(freq_list, val_choice=None, arrage=None, change_limit=50):
+def adjust_frequencies(freq_list, val_choice=None, arrage=None, change_limit=20):
 
     """
     調整頻率列表，使其接近簡單整數比率。這個過程在指定的更改次數內進行。
@@ -158,7 +159,7 @@ def adjust_frequencies(freq_list, val_choice=None, arrage=None, change_limit=50)
         else:
             arrange_factor = (0.5 + rd.gauss(0.5, 0.1)) % 1
 
-        print(f'平衡值：{arrange_factor:.2f}')
+        print(f'變動量：{ratio_adjustment:.2f}  平衡值：{arrange_factor:.2f}')
 
         k, adjusted_k, n, adjusted_n = apply_adjustment(freq_list, key_to_adjust, ratio_adjustment, arrange_factor)
 
@@ -188,7 +189,7 @@ def adjust_frequencies(freq_list, val_choice=None, arrage=None, change_limit=50)
     return result_list, changes_idx, rd_vals
 
 
-def create_composition(freq_tuples, changes_idx, length=80., melody_volume_range=(20, 60), accompaniment_volume=0):
+def create_composition(freq_tuples, changes_idx, length=60., melody_volume_range=(20, 60), accompaniment_volume=3):
     """
     根据频率元组列表创建并合并Sound对象为一段音频，同时为每个Sound对象加入随机的音量变化。
 
@@ -206,23 +207,28 @@ def create_composition(freq_tuples, changes_idx, length=80., melody_volume_range
     freq_params = list(zip(*freq_tuples))
 
     # 准备每个Sound对象的音量变化列表
-    volume_changes = [[accompaniment_volume * rd.gauss(1, 0.1) for _ in range(num_moments)] for _ in range(num_sounds)]
+    volume_changes = [[accompaniment_volume * rd.gauss(1, 0.2) for _ in range(num_moments)] for _ in range(num_sounds)]
     for i, change in enumerate(changes_idx):
 
         change_1 = change[0]
         change_2 = change[1]
+        change_3 = rd.choice([x for x in range(num_sounds) if x not in (change_1, change_2)])
         volume_changes[change_1][i] = rd.randint(*melody_volume_range)
         volume_changes[change_2][i] = rd.randint(*melody_volume_range)
+        volume_changes[change_3][i] = rd.randint(*melody_volume_range) * (rd.random() + 0.3)
 
         if i > 0:
             volume_changes[change_1][i - 1] = rd.randint(*melody_volume_range) * rd.gauss(0.15, 0.1)
             volume_changes[change_2][i - 1] = rd.randint(*melody_volume_range) * rd.gauss(0.15, 0.1)
+            volume_changes[change_3][i - 1] = rd.randint(*melody_volume_range) * rd.gauss(0.1, 0.15)
         if i < len(changes_idx) - 1:
             volume_changes[change_1][i + 1] = rd.randint(*melody_volume_range) * rd.gauss(0.7, 0.1)
             volume_changes[change_2][i + 1] = rd.randint(*melody_volume_range) * rd.gauss(0.7, 0.1)
+            volume_changes[change_3][i + 1] = rd.randint(*melody_volume_range) * rd.gauss(0.4, 0.3)
         if i < len(changes_idx) - 2:
             volume_changes[change_1][i + 2] = rd.randint(*melody_volume_range) * rd.gauss(0.5, 0.1)
             volume_changes[change_2][i + 2] = rd.randint(*melody_volume_range) * rd.gauss(0.5, 0.1)
+            volume_changes[change_3][i + 2] = rd.randint(*melody_volume_range) * rd.gauss(0.3, 0.1)
 
     plt.plot([x for x in zip(*volume_changes)])
     plt.show()
@@ -234,17 +240,17 @@ def create_composition(freq_tuples, changes_idx, length=80., melody_volume_range
         for y in x:
             print(f'{round(y, 3):10}', end='')
         print()
-    # 创建Sound对象列表，并应用音量变化
+
     sounds = [Sound(
         length=length,
-        freq=list(x for y, x in enumerate(freq_params[i]) if not y % 2),
-        vol=list(volume_changes[i]),
+        freq=list(x for y, x in enumerate(freq_params[i]) if not y % 4),
+        vol=list(x for y, x in enumerate(volume_changes[i]) if not y % 3),
         tbr=TimbreFactor(
-            d_spd=0.5+rd.random()*3,
+            d_spd=0.8+rd.random()*9,
             od_ev=(-0.4+rd.random())*2,
-            peaks=rd.sample([x for x in range(2, 19)], 3),
-            sigmas=[rd.random()*5 for _ in range(3)],
-            gs_amps=[(rd.random()-0.3)*20 for _ in range(3)]
+            peaks=rd.sample([x for x in range(2, 13)], 2),
+            sigmas=[rd.random()*20 for _ in range(2)],
+            gs_amps=[(rd.random()-0.4)*10 for _ in range(2)]
         ),
         rd_z=rd.random()*0.005,
         fm_changes=[
@@ -268,6 +274,6 @@ def find_closest_2_power(a):
 
 
 if __name__ == '__main__':
-    a = [104, 164, 228, 266, 310, 408]
-    note, cdx, _ = adjust_frequencies(a, arrage=[-0.01, -0.12, -0.05, -0.07, 0.08, 0.03, -0.38])
+    a = [95, 213, 336, 598, 729, 900]
+    note, cdx, _ = adjust_frequencies(a)
     create_composition(note, cdx)
